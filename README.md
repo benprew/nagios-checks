@@ -8,7 +8,8 @@ check_haproxy.rb checks haproxy stats and reports errors if any of the servers f
     Usage: check_haproxy.rb [options]
 
     Specific options:
-    -u, --url URL                    URL to check
+	-u, --url URL                    csv-formatted stats URL to check (http://demo.1wt.eu/;csv
     -p, --proxies [PROXIES]          Only check these proxies (eg proxy1,proxy2,proxylive)
     -U, --user [USER]                basic auth USER to login as
     -P, --password [PASSWORD]        basic auth PASSWORD
+    -d, --[no-]debug                 include debug output
