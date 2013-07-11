@@ -8,13 +8,15 @@ OK = 0
 WARNING = 1
 CRITICAL = 2
 
+HAPROXY_COLUMN_NAMES = %w{pxname svname qcur qmax scur smax slim stot bin bout dreq dresp ereq econ eresp wretr wredis status weight act bck chkfail chkdown lastchg downtime qlimit pid iid sid throttle lbtot tracked type rate rate_lim rate_max check_status check_code check_duration hrsp_1xx hrsp_2xx hrsp_3xx hrsp_4xx hrsp_5xx hrsp_other hanafail req_rate req_rate_max req_tot cli_abrt srv_abrt}
+
 @messages = []
 exit_code = OK
 
 options = OpenStruct.new
 options.proxies = []
 
-opts = OptionParser.new do |opts|
+op = OptionParser.new do |opts|
   opts.banner = 'Usage: check_haproxy.rb [options]'
 
   opts.separator ""
@@ -22,7 +24,7 @@ opts = OptionParser.new do |opts|
 
   # Required arguments
 
-  opts.on("-u", "--url URL", "URL to check") do |v|
+  opts.on("-u", "--url URL", "csv-formatted stats URL to check (http://demo.1wt.eu/;csv") do |v|
     options.url = v
   end
 
@@ -39,27 +41,34 @@ opts = OptionParser.new do |opts|
   opts.on("-P", "--password [PASSWORD]", "basic auth PASSWORD") do |v|
     options.password = v
   end
+
+  opts.on("-d", "--[no-]debug", "include debug output") do |v|
+    options.debug = v
+  end
 end
 
-opts.parse!
+op.parse!
 
 if !options.url
   puts "ERROR: URL is required"
-  puts opts
+  puts op
   exit
 end
 
-open(options.url, http_basic_authentication: [options.user, options.password]) do |f|
-  CSV.new(f, headers: :first_row).each do |row|
-    next unless options.proxies.empty? || options.proxies.include?(row['# pxname'])
+open(options.url, :http_basic_authentication => [options.user, options.password]) do |f|
+  f.each do |line|
+
+    row = HAPROXY_COLUMN_NAMES.zip(CSV.parse(line)[0]).reduce({}) { |hash, val| hash.merge({val[0] => val[1]}) }
+
+    next unless options.proxies.empty? || options.proxies.include?(row['pxname'])
     next if row['svname'] == 'BACKEND'
 
-    if row['status'] == 'UP'
-      puts sprintf("%s '%s' is UP on '%s' proxy!", (row['act'] == 1 ? 'Active' : 'Backup'), row['svname'], row['# pxname'])
+    if row['status'] == 'UP' && options.debug
+      puts sprintf("%s '%s' is UP on '%s' proxy!", (row['act'] == 1 ? 'Active' : 'Backup'), row['svname'], row['pxname'])
     end
 
     if row['status'] == 'DOWN'
-      @messages << sprintf("%s '%s' is DOWN on '%s' proxy!", (row['act'] == 1 ? 'Active' : 'Backup'), row['svname'], row['# pxname'])
+      @messages << sprintf("%s '%s' is DOWN on '%s' proxy!", (row['act'] == 1 ? 'Active' : 'Backup'), row['svname'], row['pxname'])
       exit_code = CRITICAL
     end
   end
