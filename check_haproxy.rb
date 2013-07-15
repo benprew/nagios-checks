@@ -32,7 +32,7 @@ op = OptionParser.new do |opts|
   # Optional Arguments
 
   opts.on("-p", "--proxies [PROXIES]", "Only check these proxies (eg proxy1,proxy2,proxylive)") do |v|
-    options[:proxies] = v.split(/,/)
+    options.proxies = v.split(/,/)
   end
 
   opts.on("-U", "--user [USER]", "basic auth USER to login as") do |v|
