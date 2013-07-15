@@ -60,7 +60,6 @@ open(options.url, :http_basic_authentication => [options.user, options.password]
   f.each do |line|
 
     row = HAPROXY_COLUMN_NAMES.zip(CSV.parse(line)[0]).reduce({}) { |hash, val| hash.merge({val[0] => val[1]}) }
-    p row
 
     next unless options.proxies.empty? || options.proxies.include?(row['pxname'])
     next if row['svname'] == 'BACKEND'
