@@ -60,22 +60,30 @@ open(options.url, :http_basic_authentication => [options.user, options.password]
   f.each do |line|
 
     row = HAPROXY_COLUMN_NAMES.zip(CSV.parse(line)[0]).reduce({}) { |hash, val| hash.merge({val[0] => val[1]}) }
+    p row
 
     next unless options.proxies.empty? || options.proxies.include?(row['pxname'])
     next if row['svname'] == 'BACKEND'
 
-    if row['status'] == 'UP' && options.debug
-      puts sprintf("%s '%s' is UP on '%s' proxy!", (row['act'] == 1 ? 'Active' : 'Backup'), row['svname'], row['pxname'])
+    if row['status'] == 'UP'
+      @messages << sprintf("%s '%s' is UP on '%s' proxy!", (row['act'] == '1' ? 'Active' : 'Backup'), row['svname'], row['pxname'])
     end
 
     if row['status'] == 'DOWN'
-      @messages << sprintf("%s '%s' is DOWN on '%s' proxy!", (row['act'] == 1 ? 'Active' : 'Backup'), row['svname'], row['pxname'])
+      @messages.unshift(sprintf("%s '%s' is DOWN on '%s' proxy!", (row['act'] == '1' ? 'Active' : 'Backup'), row['svname'], row['pxname']))
       exit_code = CRITICAL
     end
   end
 end
 
-puts @messages
+if @messages.length == 0
+  exit_code = WARNING
+  puts "No proxies listed as up or down"
+else
+  puts @messages
+end
+
+puts "EXIT - #{exit_code}"
 exit exit_code
 
 =begin
