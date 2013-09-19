@@ -119,7 +119,7 @@ open(options.url, :http_basic_authentication => [options.user, options.password]
         exit_code = CRITICAL
       end
 
-    else
+    elsif row['status'] != 'no check'
       @proxies << message
 
       if row['status'] != 'UP'
