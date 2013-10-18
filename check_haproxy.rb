@@ -64,12 +64,11 @@ open(options.url, :http_basic_authentication => [options.user, options.password]
     next unless options.proxies.empty? || options.proxies.include?(row['pxname'])
     next if row['svname'] == 'BACKEND'
 
-    if row['status'] == 'UP'
-      @messages << sprintf("%s '%s' is UP on '%s' proxy!", (row['act'] == '1' ? 'Active' : 'Backup'), row['svname'], row['pxname'])
-    end
+    message = sprintf("%s '%s' is %s on '%s' proxy!", (row['act'] == '1' ? 'Active' : 'Backup'), row['svname'], row['status'], row['pxname'])
+
+    @messages << message if ['UP', 'DOWN'].include? row['status']
 
     if row['status'] == 'DOWN'
-      @messages.unshift(sprintf("%s '%s' is DOWN on '%s' proxy!", (row['act'] == '1' ? 'Active' : 'Backup'), row['svname'], row['pxname']))
       exit_code = CRITICAL
     end
   end
@@ -79,10 +78,16 @@ if @messages.length == 0
   exit_code = WARNING
   puts "No proxies listed as up or down"
 else
-  puts @messages
+  # output DOWN messages on a single line
+  down_proxies = @messages.select { |m| m.match(/DOWN/) }
+  if down_proxies.length > 0
+    puts down_proxies.join(" ")
+  else
+    puts "All proxies UP"
+  end
+  puts @messages.reject { |m| m.match(/DOWN/) }
 end
 
-puts "EXIT - #{exit_code}"
 exit exit_code
 
 =begin
