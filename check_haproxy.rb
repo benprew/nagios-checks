@@ -17,42 +17,40 @@ exit_code = OK
 options = OpenStruct.new
 options.proxies = []
 
-op = OptionParser.new do |opts|
-  opts.banner = 'Usage: check_haproxy.rb [options]'
-
-  opts.separator ""
-  opts.separator "Specific options:"
-
+opts = OptionParser.new
   # Required arguments
 
-  opts.on("-u", "--url URL", "csv-formatted stats URL to check (http://demo.1wt.eu/;csv") do |v|
-    options.url = v
-  end
-
-  # Optional Arguments
-
-  opts.on("-p", "--proxies [PROXIES]", "Only check these proxies (eg proxy1,proxy2,proxylive)") do |v|
-    options.proxies = v.split(/,/)
-  end
-
-  opts.on("-U", "--user [USER]", "basic auth USER to login as") do |v|
-    options.user = v
-  end
-
-  opts.on("-P", "--password [PASSWORD]", "basic auth PASSWORD") do |v|
-    options.password = v
-  end
-
-  opts.on("-d", "--[no-]debug", "include debug output") do |v|
-    options.debug = v
-  end
+opts.on("-u", "--url URL", "csv-formatted stats URL to check (http://demo.1wt.eu/;csv") do |v|
+  options.url = v
 end
 
-op.parse!
+# Optional Arguments
+
+opts.on("-p", "--proxies [PROXIES]", "Only check these proxies (eg proxy1,proxy2,proxylive)") do |v|
+  options.proxies = v.split(/,/)
+end
+
+opts.on("-U", "--user [USER]", "basic auth USER to login as") do |v|
+  options.user = v
+end
+
+opts.on("-P", "--password [PASSWORD]", "basic auth PASSWORD") do |v|
+  options.password = v
+end
+
+opts.on("-d", "--[no-]debug", "include debug output") do |v|
+  options.debug = v
+end
+
+opts.on( '-h', '--help', 'Display this screen' ) do
+  puts opts
+  exit 3
+end
+opts.parse!
 
 if !options.url
   puts "ERROR: URL is required"
-  puts op
+  puts opts
   exit
 end
 
