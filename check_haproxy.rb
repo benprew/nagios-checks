@@ -81,9 +81,11 @@ else
   if down_proxies.length > 0
     puts down_proxies.join(" ")
   else
-    puts "All proxies UP"
+    puts "All " + @messages.length.to_s + " proxies UP"
   end
-  puts @messages.reject { |m| m.match(/DOWN/) }
+  if options.debug
+    puts @messages.reject { |m| m.match(/DOWN/) }
+  end
 end
 
 exit exit_code
