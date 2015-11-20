@@ -14,6 +14,7 @@ status = ['OK', 'WARN', 'CRIT', 'UNKN']
 
 @proxies = []
 @errors = []
+@perfdata = []
 exit_code = OK
 
 options = OpenStruct.new
@@ -98,20 +99,24 @@ open(options.url, :http_basic_authentication => [options.user, options.password]
     row = HAPROXY_COLUMN_NAMES.zip(CSV.parse(line)[0]).reduce({}) { |hash, val| hash.merge({val[0] => val[1]}) }
 
     next unless options.proxies.empty? || options.proxies.include?(row['pxname'])
-    next if row['pxname'] == 'statistics'
+    next if ['statistics', 'admin_stats', 'stats'].include? row['pxname']
 
     role = row['act'].to_i > 0 ? 'active ' : (row['bck'].to_i > 0 ? 'backup ' : '')
     message = sprintf("%s: %s %s%s", row['pxname'], row['status'], role, row['svname'])
+    perf_id = "#{row['pxname']}".downcase
 
-    if %w(FRONTEND BACKEND).include? row['svname']
-      if options.critical && row['scur'].to_i * 100 >= options.critical.to_i * row['slim'].to_i
-        @errors << sprintf("%s has too many sessions (%s/%s) on %s proxy",
+    if row['svname'] == 'FRONTEND'
+      session_percent_usage = row['scur'].to_i * 100 / row['slim'].to_i
+      @perfdata << "#{perf_id}_sessions=#{session_percent_usage}%;#{options.warning ? options.warning : ""};#{options.critical ? options.critical : ""};;"
+      @perfdata << "#{perf_id}_rate=#{row['rate']};;;;#{row['rate_max']}"
+      if options.critical && session_percent_usage > options.critical.to_i
+        @errors << sprintf("%s has way too many sessions (%s/%s) on %s proxy",
                            row['svname'],
                            row['scur'],
                            row['slim'],
                            row['pxname'])
         exit_code = CRITICAL
-      elsif options.warning && row['scur'].to_i * 100 >= options.warning.to_i * row['slim'].to_i
+      elsif options.warning && session_percent_usage > options.warning.to_i
         @errors << sprintf("%s has too many sessions (%s/%s) on %s proxy",
                            row['svname'],
                            row['scur'],
@@ -125,12 +130,29 @@ open(options.url, :http_basic_authentication => [options.user, options.password]
         exit_code = CRITICAL
       end
 
+    elsif row['svname'] == 'BACKEND'
+      # It has no point to check sessions number for backends, against the alert limits,
+      # as the SLIM number is actually coming from the "fullconn" parameter.
+      # So we just collect perfdata. See the following url for more info:
+      # http://comments.gmane.org/gmane.comp.web.haproxy/9715
+      current_sessions = row['scur'].to_i
+      @perfdata << "#{perf_id}_sessions=#{current_sessions};;;;"
+      @perfdata << "#{perf_id}_rate=#{row['rate']};;;;#{row['rate_max']}"
+      if row['status'] != 'OPEN' && row['status'] != 'UP'
+        @errors << message
+        exit_code = CRITICAL
+      end
+
     elsif row['status'] != 'no check'
       @proxies << message
 
       if row['status'] != 'UP'
         @errors << message
         exit_code = WARNING if exit_code == OK || exit_code == UNKNOWN
+      else
+        session_percent_usage = row['scur'].to_i * 100 / row['slim'].to_i
+        @perfdata << "#{perf_id}-#{row['svname']}_sessions=#{session_percent_usage}%;;;;"
+        @perfdata << "#{perf_id}-#{row['svname']}_rate=#{row['rate']};;;;#{row['rate_max']}"
       end
     end
   end
@@ -145,7 +167,7 @@ if @proxies.length == 0
   exit_code = UNKNOWN if exit_code == OK
 end
 
-puts "HAPROXY " + status[exit_code] + ": " + @errors.join('; ')
+puts "HAPROXY " + status[exit_code] + ": " + @errors.join('; ') + "|" + @perfdata.join(" ")
 puts @proxies
 
 exit exit_code
@@ -153,6 +175,7 @@ exit exit_code
 =begin
 Copyright (C) 2013 Ben Prew
 Copyright (C) 2013 Mark Ruys, Peercode <mark.ruys@peercode.nl>
+Copyright (C) 2015 Hector Sanjuan. Nugg.ad <hector.sanjuan@nugg.ad>
 
 This program is free software: you can redistribute it and/or modify
 it under the terms of the GNU General Public License as published by
