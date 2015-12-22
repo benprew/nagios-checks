@@ -85,75 +85,83 @@ if options.warning && options.critical && options.warning.to_i > options.critica
   exit UNKNOWN
 end
 
-open(options.url, :http_basic_authentication => [options.user, options.password]) do |f|
-  f.each do |line|
+begin
+  f = open(options.url, :http_basic_authentication => [options.user, options.password])
+rescue OpenURI::HTTPError => e
+  puts "ERROR: #{e.message}"
+  exit UNKNOWN
+rescue Errno::ECONNREFUSED => e
+  puts "ERROR: #{e.message}"
+  exit UNKNOWN
+end
 
-    if line =~ /^# /
-      HAPROXY_COLUMN_NAMES = line[2..-1].split(',')
-      next
-    elsif ! defined? HAPROXY_COLUMN_NAMES
-      puts "ERROR: CSV header is missing"
-      exit UNKNOWN
+f.each do |line|
+
+  if line =~ /^# /
+    HAPROXY_COLUMN_NAMES = line[2..-1].split(',')
+    next
+  elsif ! defined? HAPROXY_COLUMN_NAMES
+    puts "ERROR: CSV header is missing"
+    exit UNKNOWN
+  end
+
+  row = HAPROXY_COLUMN_NAMES.zip(CSV.parse(line)[0]).reduce({}) { |hash, val| hash.merge({val[0] => val[1]}) }
+
+  next unless options.proxies.empty? || options.proxies.include?(row['pxname'])
+  next if ['statistics', 'admin_stats', 'stats'].include? row['pxname']
+
+  role = row['act'].to_i > 0 ? 'active ' : (row['bck'].to_i > 0 ? 'backup ' : '')
+  message = sprintf("%s: %s %s%s", row['pxname'], row['status'], role, row['svname'])
+  perf_id = "#{row['pxname']}".downcase
+
+  if row['svname'] == 'FRONTEND'
+    session_percent_usage = row['scur'].to_i * 100 / row['slim'].to_i
+    @perfdata << "#{perf_id}_sessions=#{session_percent_usage}%;#{options.warning ? options.warning : ""};#{options.critical ? options.critical : ""};;"
+    @perfdata << "#{perf_id}_rate=#{row['rate']};;;;#{row['rate_max']}"
+    if options.critical && session_percent_usage > options.critical.to_i
+      @errors << sprintf("%s has way too many sessions (%s/%s) on %s proxy",
+                         row['svname'],
+                         row['scur'],
+                         row['slim'],
+                         row['pxname'])
+      exit_code = CRITICAL
+    elsif options.warning && session_percent_usage > options.warning.to_i
+      @errors << sprintf("%s has too many sessions (%s/%s) on %s proxy",
+                         row['svname'],
+                         row['scur'],
+                         row['slim'],
+                         row['pxname'])
+      exit_code = WARNING if exit_code == OK || exit_code == UNKNOWN
     end
 
-    row = HAPROXY_COLUMN_NAMES.zip(CSV.parse(line)[0]).reduce({}) { |hash, val| hash.merge({val[0] => val[1]}) }
+    if row['status'] != 'OPEN' && row['status'] != 'UP'
+      @errors << message
+      exit_code = CRITICAL
+    end
 
-    next unless options.proxies.empty? || options.proxies.include?(row['pxname'])
-    next if ['statistics', 'admin_stats', 'stats'].include? row['pxname']
+  elsif row['svname'] == 'BACKEND'
+    # It has no point to check sessions number for backends, against the alert limits,
+    # as the SLIM number is actually coming from the "fullconn" parameter.
+    # So we just collect perfdata. See the following url for more info:
+    # http://comments.gmane.org/gmane.comp.web.haproxy/9715
+    current_sessions = row['scur'].to_i
+    @perfdata << "#{perf_id}_sessions=#{current_sessions};;;;"
+    @perfdata << "#{perf_id}_rate=#{row['rate']};;;;#{row['rate_max']}"
+    if row['status'] != 'OPEN' && row['status'] != 'UP'
+      @errors << message
+      exit_code = CRITICAL
+    end
 
-    role = row['act'].to_i > 0 ? 'active ' : (row['bck'].to_i > 0 ? 'backup ' : '')
-    message = sprintf("%s: %s %s%s", row['pxname'], row['status'], role, row['svname'])
-    perf_id = "#{row['pxname']}".downcase
+  elsif row['status'] != 'no check'
+    @proxies << message
 
-    if row['svname'] == 'FRONTEND'
+    if row['status'] != 'UP'
+      @errors << message
+      exit_code = WARNING if exit_code == OK || exit_code == UNKNOWN
+    else
       session_percent_usage = row['scur'].to_i * 100 / row['slim'].to_i
-      @perfdata << "#{perf_id}_sessions=#{session_percent_usage}%;#{options.warning ? options.warning : ""};#{options.critical ? options.critical : ""};;"
-      @perfdata << "#{perf_id}_rate=#{row['rate']};;;;#{row['rate_max']}"
-      if options.critical && session_percent_usage > options.critical.to_i
-        @errors << sprintf("%s has way too many sessions (%s/%s) on %s proxy",
-                           row['svname'],
-                           row['scur'],
-                           row['slim'],
-                           row['pxname'])
-        exit_code = CRITICAL
-      elsif options.warning && session_percent_usage > options.warning.to_i
-        @errors << sprintf("%s has too many sessions (%s/%s) on %s proxy",
-                           row['svname'],
-                           row['scur'],
-                           row['slim'],
-                           row['pxname'])
-        exit_code = WARNING if exit_code == OK || exit_code == UNKNOWN
-      end
-
-      if row['status'] != 'OPEN' && row['status'] != 'UP'
-        @errors << message
-        exit_code = CRITICAL
-      end
-
-    elsif row['svname'] == 'BACKEND'
-      # It has no point to check sessions number for backends, against the alert limits,
-      # as the SLIM number is actually coming from the "fullconn" parameter.
-      # So we just collect perfdata. See the following url for more info:
-      # http://comments.gmane.org/gmane.comp.web.haproxy/9715
-      current_sessions = row['scur'].to_i
-      @perfdata << "#{perf_id}_sessions=#{current_sessions};;;;"
-      @perfdata << "#{perf_id}_rate=#{row['rate']};;;;#{row['rate_max']}"
-      if row['status'] != 'OPEN' && row['status'] != 'UP'
-        @errors << message
-        exit_code = CRITICAL
-      end
-
-    elsif row['status'] != 'no check'
-      @proxies << message
-
-      if row['status'] != 'UP'
-        @errors << message
-        exit_code = WARNING if exit_code == OK || exit_code == UNKNOWN
-      else
-        session_percent_usage = row['scur'].to_i * 100 / row['slim'].to_i
-        @perfdata << "#{perf_id}-#{row['svname']}_sessions=#{session_percent_usage}%;;;;"
-        @perfdata << "#{perf_id}-#{row['svname']}_rate=#{row['rate']};;;;#{row['rate_max']}"
-      end
+      @perfdata << "#{perf_id}-#{row['svname']}_sessions=#{session_percent_usage}%;;;;"
+      @perfdata << "#{perf_id}-#{row['svname']}_rate=#{row['rate']};;;;#{row['rate_max']}"
     end
   end
 end
@@ -176,17 +184,15 @@ exit exit_code
 Copyright (C) 2013 Ben Prew
 Copyright (C) 2013 Mark Ruys, Peercode <mark.ruys@peercode.nl>
 Copyright (C) 2015 Hector Sanjuan. Nugg.ad <hector.sanjuan@nugg.ad>
-
+Copyright (C) 2015 Roger Torrentsgeneros <roger.torrentsgeneros@softonic.com>
 This program is free software: you can redistribute it and/or modify
 it under the terms of the GNU General Public License as published by
 the Free Software Foundation, either version 3 of the License, or
 (at your option) any later version.
-
 This program is distributed in the hope that it will be useful,
 but WITHOUT ANY WARRANTY; without even the implied warranty of
 MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
 GNU General Public License for more details.
-
 You should have received a copy of the GNU General Public License
 along with this program.  If not, see <http://www.gnu.org/licenses/>.
 =end
