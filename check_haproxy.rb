@@ -4,11 +4,17 @@ require 'optparse'
 require 'open-uri'
 require 'ostruct'
 require 'csv'
+require 'openssl'
 
 OK = 0
 WARNING = 1
 CRITICAL = 2
 UNKNOWN = 3
+
+# allows https with invalid certificate on ruby 1.8+
+#
+# src: also://snippets.aktagon.com/snippets/370-hack-for-using-openuri-with-ssl
+OpenSSL::SSL::VERIFY_PEER = OpenSSL::SSL::VERIFY_NONE
 
 status = ['OK', 'WARN', 'CRIT', 'UNKN']
 
