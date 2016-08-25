@@ -115,7 +115,11 @@ f.each do |line|
   perf_id = "#{row['pxname']}".downcase
 
   if row['svname'] == 'FRONTEND'
-    session_percent_usage = row['scur'].to_i * 100 / row['slim'].to_i
+    if row['slim'].to_i == 0
+      session_percent_usage = 0
+    else
+      session_percent_usage = row['scur'].to_i * 100 / row['slim'].to_i
+    end
     @perfdata << "#{perf_id}_sessions=#{session_percent_usage}%;#{options.warning ? options.warning : ""};#{options.critical ? options.critical : ""};;"
     @perfdata << "#{perf_id}_rate=#{row['rate']};;;;#{row['rate_max']}"
     if options.critical && session_percent_usage > options.critical.to_i
@@ -159,7 +163,11 @@ f.each do |line|
       @errors << message
       exit_code = WARNING if exit_code == OK || exit_code == UNKNOWN
     else
-      session_percent_usage = row['scur'].to_i * 100 / row['slim'].to_i
+      if row['slim'].to_i == 0
+        session_percent_usage = 0
+      else
+        session_percent_usage = row['scur'].to_i * 100 / row['slim'].to_i
+      end
       @perfdata << "#{perf_id}-#{row['svname']}_sessions=#{session_percent_usage}%;;;;"
       @perfdata << "#{perf_id}-#{row['svname']}_rate=#{row['rate']};;;;#{row['rate_max']}"
     end
