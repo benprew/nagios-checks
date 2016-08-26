@@ -91,8 +91,15 @@ if options.warning && options.critical && options.warning.to_i > options.critica
   exit UNKNOWN
 end
 
+
+tries = 2
+
 begin
-  f = open(options.url, :http_basic_authentication => [options.user, options.password])
+  f = open(options.url, :http_basic_authentication => [options.user, options.password], redirect: false)
+rescue OpenURI::HTTPRedirect => redirect
+  options.url = redirect.uri # assigned from the "Location" response header
+  retry if (tries -= 1) > 0
+  raise
 rescue OpenURI::HTTPError => e
   puts "ERROR: #{e.message}"
   exit UNKNOWN
