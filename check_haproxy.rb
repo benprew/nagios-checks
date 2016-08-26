@@ -95,18 +95,23 @@ end
 tries = 2
 
 begin
-  f = open(options.url, :http_basic_authentication => [options.user, options.password], redirect: false)
-rescue OpenURI::HTTPRedirect => redirect
-  options.url = redirect.uri # assigned from the "Location" response header
-  retry if (tries -= 1) > 0
-  raise
+  f = open(options.url, :http_basic_authentication => [options.user, options.password])
 rescue OpenURI::HTTPError => e
   puts "ERROR: #{e.message}"
-  exit UNKNOWN
+  exit CRITICAL
 rescue Errno::ECONNREFUSED => e
   puts "ERROR: #{e.message}"
-  exit UNKNOWN
+  exit CRITICAL
+rescue Exception => e
+  if e.message =~ /redirection forbidden/
+    options.url = e.message.gsub(/.*-> (.*)/, '\1')  # extract redirect URL
+    retry if (tries -= 1) > 0
+    raise
+  else
+    exit UNKNOWN
+  end
 end
+
 
 f.each do |line|
 
