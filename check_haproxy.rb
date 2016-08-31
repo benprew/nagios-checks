@@ -4,17 +4,12 @@ require 'optparse'
 require 'open-uri'
 require 'ostruct'
 require 'csv'
-require 'openssl'
 
 OK = 0
 WARNING = 1
 CRITICAL = 2
 UNKNOWN = 3
 
-# allows https with invalid certificate on ruby 1.8+
-#
-# src: also://snippets.aktagon.com/snippets/370-hack-for-using-openuri-with-ssl
-OpenSSL::SSL::VERIFY_PEER = OpenSSL::SSL::VERIFY_NONE
 
 status = ['OK', 'WARN', 'CRIT', 'UNKN']
 
@@ -57,6 +52,19 @@ op = OptionParser.new do |opts|
 
   opts.on("-c", "--critical [CRITICAL]", "Pct of active sessions (eg 90, 95)") do |v|
     options.critical = v
+  end
+
+  opts.on( '-s', '--ssl', 'Enable TLS/SSL' ) do
+    require 'openssl'
+  end
+
+  opts.on( '-k', '--insecure', 'Allow insecure TLS/SSL connections' ) do
+    require 'openssl'
+
+    # allows https with invalid certificate on ruby 1.8+
+    #
+    # src: also://snippets.aktagon.com/snippets/370-hack-for-using-openuri-with-ssl
+    OpenSSL::SSL::VERIFY_PEER = OpenSSL::SSL::VERIFY_NONE
   end
 
   opts.on( '-h', '--help', 'Display this screen' ) do
