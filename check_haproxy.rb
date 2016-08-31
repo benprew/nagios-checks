@@ -17,6 +17,7 @@ status = ['OK', 'WARN', 'CRIT', 'UNKN']
 @errors = []
 @perfdata = []
 exit_code = OK
+http_error_critical = false
 
 options = OpenStruct.new
 options.proxies = []
@@ -67,6 +68,10 @@ op = OptionParser.new do |opts|
     OpenSSL::SSL::VERIFY_PEER = OpenSSL::SSL::VERIFY_NONE
   end
 
+  opts.on( '--http-error-critical', 'Throw critical when connection to HAProxy is refused or returns error code' ) do
+    http_error_critical = true
+  end
+
   opts.on( '-h', '--help', 'Display this screen' ) do
     puts opts
     exit 3
@@ -106,10 +111,10 @@ begin
   f = open(options.url, :http_basic_authentication => [options.user, options.password])
 rescue OpenURI::HTTPError => e
   puts "ERROR: #{e.message}"
-  exit CRITICAL
+  http_error_critical ? exit CRITICAL : exit UNKNOWN
 rescue Errno::ECONNREFUSED => e
   puts "ERROR: #{e.message}"
-  exit CRITICAL
+  http_error_critical ? exit CRITICAL : exit UNKNOWN
 rescue Exception => e
   if e.message =~ /redirection forbidden/
     options.url = e.message.gsub(/.*-> (.*)/, '\1')  # extract redirect URL
