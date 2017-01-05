@@ -10,12 +10,14 @@ WARNING = 1
 CRITICAL = 2
 UNKNOWN = 3
 
+
 status = ['OK', 'WARN', 'CRIT', 'UNKN']
 
 @proxies = []
 @errors = []
 @perfdata = []
 exit_code = OK
+http_error_critical = false
 
 options = OpenStruct.new
 options.proxies = []
@@ -53,6 +55,23 @@ op = OptionParser.new do |opts|
     options.critical = v
   end
 
+  opts.on( '-s', '--ssl', 'Enable TLS/SSL' ) do
+    require 'openssl'
+  end
+
+  opts.on( '-k', '--insecure', 'Allow insecure TLS/SSL connections' ) do
+    require 'openssl'
+
+    # allows https with invalid certificate on ruby 1.8+
+    #
+    # src: also://snippets.aktagon.com/snippets/370-hack-for-using-openuri-with-ssl
+    OpenSSL::SSL::VERIFY_PEER = OpenSSL::SSL::VERIFY_NONE
+  end
+
+  opts.on( '--http-error-critical', 'Throw critical when connection to HAProxy is refused or returns error code' ) do
+    http_error_critical = true
+  end
+
   opts.on( '-h', '--help', 'Display this screen' ) do
     puts opts
     exit 3
@@ -85,15 +104,27 @@ if options.warning && options.critical && options.warning.to_i > options.critica
   exit UNKNOWN
 end
 
+
+tries = 2
+
 begin
   f = open(options.url, :http_basic_authentication => [options.user, options.password])
 rescue OpenURI::HTTPError => e
   puts "ERROR: #{e.message}"
-  exit UNKNOWN
+  http_error_critical ? exit CRITICAL : exit UNKNOWN
 rescue Errno::ECONNREFUSED => e
   puts "ERROR: #{e.message}"
-  exit UNKNOWN
+  http_error_critical ? exit CRITICAL : exit UNKNOWN
+rescue Exception => e
+  if e.message =~ /redirection forbidden/
+    options.url = e.message.gsub(/.*-> (.*)/, '\1')  # extract redirect URL
+    retry if (tries -= 1) > 0
+    raise
+  else
+    exit UNKNOWN
+  end
 end
+
 
 f.each do |line|
 
@@ -115,7 +146,11 @@ f.each do |line|
   perf_id = "#{row['pxname']}".downcase
 
   if row['svname'] == 'FRONTEND'
-    session_percent_usage = row['scur'].to_i * 100 / row['slim'].to_i
+    if row['slim'].to_i == 0
+      session_percent_usage = 0
+    else
+      session_percent_usage = row['scur'].to_i * 100 / row['slim'].to_i
+    end
     @perfdata << "#{perf_id}_sessions=#{session_percent_usage}%;#{options.warning ? options.warning : ""};#{options.critical ? options.critical : ""};;"
     @perfdata << "#{perf_id}_rate=#{row['rate']};;;;#{row['rate_max']}"
     if options.critical && session_percent_usage > options.critical.to_i
@@ -159,7 +194,11 @@ f.each do |line|
       @errors << message
       exit_code = WARNING if exit_code == OK || exit_code == UNKNOWN
     else
-      session_percent_usage = row['scur'].to_i * 100 / row['slim'].to_i
+      if row['slim'].to_i == 0
+        session_percent_usage = 0
+      else
+        session_percent_usage = row['scur'].to_i * 100 / row['slim'].to_i
+      end
       @perfdata << "#{perf_id}-#{row['svname']}_sessions=#{session_percent_usage}%;;;;"
       @perfdata << "#{perf_id}-#{row['svname']}_rate=#{row['rate']};;;;#{row['rate_max']}"
     end
