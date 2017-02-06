@@ -17,16 +17,14 @@ status = ['OK', 'WARN', 'CRIT', 'UNKN']
 @errors = []
 @perfdata = []
 exit_code = OK
-http_error_critical = false
-
 options = OpenStruct.new
 options.proxies = []
 
 op = OptionParser.new do |opts|
   opts.banner = 'Usage: check_haproxy.rb [options]'
 
-  opts.separator ""
-  opts.separator "Specific options:"
+  opts.separator ''
+  opts.separator 'Specific options:'
 
   # Required arguments
   opts.on("-u", "--url URL", "Statistics URL to check (eg. http://demo.1wt.eu/)") do |v|
@@ -55,21 +53,12 @@ op = OptionParser.new do |opts|
     options.critical = v
   end
 
-  opts.on( '-s', '--ssl', 'Enable TLS/SSL' ) do
-    require 'openssl'
-  end
-
   opts.on( '-k', '--insecure', 'Allow insecure TLS/SSL connections' ) do
-    require 'openssl'
-
-    # allows https with invalid certificate on ruby 1.8+
-    #
-    # src: also://snippets.aktagon.com/snippets/370-hack-for-using-openuri-with-ssl
-    OpenSSL::SSL::VERIFY_PEER = OpenSSL::SSL::VERIFY_NONE
+    options.insecure_ssl = true
   end
 
   opts.on( '--http-error-critical', 'Throw critical when connection to HAProxy is refused or returns error code' ) do
-    http_error_critical = true
+    options.http_error_critical = true
   end
 
   opts.on( '-h', '--help', 'Display this screen' ) do
@@ -80,58 +69,80 @@ end
 
 op.parse!
 
-if !options.url
-  puts "ERROR: URL is required"
+unless options.url
+  puts 'ERROR: URL is required'
   puts op
   exit UNKNOWN
 end
 
-if options.warning && ! options.warning.to_i.between?(0, 100)
-  puts "ERROR: warning should be between 0 and 100"
+if options.warning && !options.warning.to_i.between?(0, 100)
+  puts 'ERROR: warning must be between 0 and 100'
   puts op
   exit UNKNOWN
 end
 
-if options.critical && ! options.critical.to_i.between?(0, 100)
-  puts "ERROR: critical should be between 0 and 100"
+if options.critical && !options.critical.to_i.between?(0, 100)
+  puts 'ERROR: critical must be between 0 and 100'
   puts op
   exit UNKNOWN
 end
 
 if options.warning && options.critical && options.warning.to_i > options.critical.to_i
-  puts "ERROR: warning should be below critical"
+  puts 'ERROR: warning must be below critical'
   puts op
   exit UNKNOWN
 end
 
+def open_options(options)
+  open_opts = {
+    :http_basic_authentication => [options.user, options.password]
+  }
 
-tries = 2
+  # allows https with invalid certificate on ruby 1.9
+  # src: http://snippets.aktagon.com/snippets/370-hack-for-using-openuri-with-ssl
+  if options.insecure_ssl && RUBY_VERSION =~ /1\.9/
+    open_opts[:ssl_verify_mode] = OpenSSL::SSL::VERIFY_NONE
+  end
 
-begin
-  f = open(options.url, :http_basic_authentication => [options.user, options.password])
-rescue OpenURI::HTTPError => e
-  puts "ERROR: #{e.message}"
-  http_error_critical ? exit CRITICAL : exit UNKNOWN
-rescue Errno::ECONNREFUSED => e
-  puts "ERROR: #{e.message}"
-  http_error_critical ? exit CRITICAL : exit UNKNOWN
-rescue Exception => e
-  if e.message =~ /redirection forbidden/
-    options.url = e.message.gsub(/.*-> (.*)/, '\1')  # extract redirect URL
-    retry if (tries -= 1) > 0
-    raise
-  else
-    exit UNKNOWN
+  open_opts
+end
+
+def haproxy_response(options)
+  tries = 2
+
+  if options.url =~ /https/
+    require 'openssl'
+    # allows https with invalid certificate on ruby 1.8
+    # src: http://snippets.aktagon.com/snippets/370-hack-for-using-openuri-with-ssl
+    if options.insecure_ssl && RUBY_VERSION =~ /1\.8/
+      OpenSSL::SSL.const_set :VERIFY_PEER, OpenSSL::SSL::VERIFY_NONE
+    end
+  end
+
+  begin
+    open(options.url, open_options(options))
+  rescue OpenURI::HTTPError => e
+    puts "ERROR: #{e.message}"
+    options.http_error_critical ? exit(CRITICAL) : exit(UNKNOWN)
+  rescue Errno::ECONNREFUSED => e
+    puts "ERROR: #{e.message}"
+    options.http_error_critical ? exit(CRITICAL) : exit(UNKNOWN)
+  rescue RuntimeError => e
+    if e.message =~ /redirection forbidden/
+      options.url = e.message.gsub(/.*-> (.*)/, '\1')  # extract redirect URL
+      retry if (tries -= 1) > 0
+      raise
+    else
+      exit UNKNOWN
+    end
   end
 end
 
-
-f.each do |line|
-
+haproxy_response(options).each do |line|
   if line =~ /^# /
     HAPROXY_COLUMN_NAMES = line[2..-1].split(',')
     next
-  elsif ! defined? HAPROXY_COLUMN_NAMES
+  elsif !defined? HAPROXY_COLUMN_NAMES
     puts "ERROR: CSV header is missing"
     exit UNKNOWN
   end
