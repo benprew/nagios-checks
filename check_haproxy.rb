@@ -180,7 +180,7 @@ haproxy_response(options).each do |line|
       exit_code = WARNING if exit_code == OK || exit_code == UNKNOWN
     end
 
-    if row['status'] != 'OPEN' && row['status'] != 'UP'
+    if row['status'] != 'OPEN' && !row['status'].include?('UP')
       @errors << message
       exit_code = CRITICAL
     end
@@ -193,7 +193,7 @@ haproxy_response(options).each do |line|
     current_sessions = row['scur'].to_i
     @perfdata << "#{perf_id}_sessions=#{current_sessions};;;;"
     @perfdata << "#{perf_id}_rate=#{row['rate']};;;;#{row['rate_max']}"
-    if row['status'] != 'OPEN' && row['status'] != 'UP'
+    if row['status'] != 'OPEN' && !row['status'].include?('UP')
       @errors << message
       exit_code = CRITICAL
     end
@@ -201,7 +201,7 @@ haproxy_response(options).each do |line|
   elsif row['status'] != 'no check'
     @proxies << message
 
-    if row['status'] != 'UP'
+    if !row['status'].include?('UP')
       @errors << message
       exit_code = WARNING if exit_code == OK || exit_code == UNKNOWN
     else
