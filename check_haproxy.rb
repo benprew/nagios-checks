@@ -16,7 +16,6 @@ status = ['OK', 'WARN', 'CRIT', 'UNKN']
 @proxies = []
 @errors = []
 @perfdata = []
-exit_code = OK
 options = OpenStruct.new
 options.proxies = []
 
@@ -138,81 +137,57 @@ def haproxy_response(options)
   end
 end
 
+def exit_code(code=0)
+  @exit_code ||= OK
+  @exit_code = code if code > @exit_code
+  @exit_code
+end
+
+header = nil
+
 haproxy_response(options).each do |line|
+
   if line =~ /^# /
-    HAPROXY_COLUMN_NAMES = line[2..-1].split(',')
+    header = line[2..-1].split(',')
     next
-  elsif !defined? HAPROXY_COLUMN_NAMES
+  elsif !defined? header
     puts "ERROR: CSV header is missing"
     exit UNKNOWN
   end
 
-  row = HAPROXY_COLUMN_NAMES.zip(CSV.parse(line)[0]).reduce({}) { |hash, val| hash.merge({val[0] => val[1]}) }
+  row = header.zip(CSV.parse_line(line)).reduce({}) { |hash, val| hash.merge({val[0] => val[1]}) }
 
   next unless options.proxies.empty? || options.proxies.include?(row['pxname'])
   next if ['statistics', 'admin_stats', 'stats'].include? row['pxname']
+  next if row['status'] == 'no check'
 
   role = row['act'].to_i > 0 ? 'active ' : (row['bck'].to_i > 0 ? 'backup ' : '')
-  message = sprintf("%s: %s %s%s", row['pxname'], row['status'], role, row['svname'])
-  perf_id = "#{row['pxname']}".downcase
+  if row['slim'].to_i == 0
+    session_percent_usage = 0
+  else
+    session_percent_usage = row['scur'].to_i * 100 / row['slim'].to_i
+  end
 
-  if row['svname'] == 'FRONTEND'
-    if row['slim'].to_i == 0
-      session_percent_usage = 0
-    else
-      session_percent_usage = row['scur'].to_i * 100 / row['slim'].to_i
-    end
-    @perfdata << "#{perf_id}_sessions=#{session_percent_usage}%;#{options.warning ? options.warning : ""};#{options.critical ? options.critical : ""};;"
-    @perfdata << "#{perf_id}_rate=#{row['rate']};;;;#{row['rate_max']}"
-    if options.critical && session_percent_usage > options.critical.to_i
-      @errors << sprintf("%s has way too many sessions (%s/%s) on %s proxy",
-                         row['svname'],
-                         row['scur'],
-                         row['slim'],
-                         row['pxname'])
-      exit_code = CRITICAL
-    elsif options.warning && session_percent_usage > options.warning.to_i
-      @errors << sprintf("%s has too many sessions (%s/%s) on %s proxy",
-                         row['svname'],
-                         row['scur'],
-                         row['slim'],
-                         row['pxname'])
-      exit_code = WARNING if exit_code == OK || exit_code == UNKNOWN
-    end
+  proxy_name = sprintf("%s %s %s %s", row['pxname'], row['svname'], row['status'], role)
+  message = sprintf("%s\tsess=%s/%s(%d%%) smax=%s",
+                    proxy_name,
+                    row['scur'],
+                    row['slim'] || '-1',
+                    session_percent_usage,
+                    row['smax'])
+  @proxies << message
 
-    if row['status'] != 'OPEN' && !row['status'].include?('UP')
-      @errors << message
-      exit_code = CRITICAL
-    end
+  if row['status'].include?('DOWN')
+    @errors << message
+    exit_code CRITICAL
+  end
 
-  elsif row['svname'] == 'BACKEND'
-    # It has no point to check sessions number for backends, against the alert limits,
-    # as the SLIM number is actually coming from the "fullconn" parameter.
-    # So we just collect perfdata. See the following url for more info:
-    # http://comments.gmane.org/gmane.comp.web.haproxy/9715
-    current_sessions = row['scur'].to_i
-    @perfdata << "#{perf_id}_sessions=#{current_sessions};;;;"
-    @perfdata << "#{perf_id}_rate=#{row['rate']};;;;#{row['rate_max']}"
-    if row['status'] != 'OPEN' && !row['status'].include?('UP')
-      @errors << message
-      exit_code = CRITICAL
-    end
-
-  elsif row['status'] != 'no check'
-    @proxies << message
-
-    if !row['status'].include?('UP')
-      @errors << message
-      exit_code = WARNING if exit_code == OK || exit_code == UNKNOWN
-    else
-      if row['slim'].to_i == 0
-        session_percent_usage = 0
-      else
-        session_percent_usage = row['scur'].to_i * 100 / row['slim'].to_i
-      end
-      @perfdata << "#{perf_id}-#{row['svname']}_sessions=#{session_percent_usage}%;;;;"
-      @perfdata << "#{perf_id}-#{row['svname']}_rate=#{row['rate']};;;;#{row['rate_max']}"
-    end
+  if options.critical && session_percent_usage >= options.critical.to_i
+    @errors << sprintf("%s - too many sessions %s/%s(%d%%)", proxy_name, row['scur'], row['slim'], session_percent_usage)
+    exit_code CRITICAL
+  elsif options.warning && session_percent_usage >= options.warning.to_i
+    @errors << sprintf("%s - too many sessions %s/%s(%d%%)", proxy_name, row['scur'], row['slim'], session_percent_usage)
+    exit_code WARNING
   end
 end
 
@@ -222,11 +197,11 @@ end
 
 if @proxies.length == 0
   @errors << "No proxies listed as up or down"
-  exit_code = UNKNOWN if exit_code == OK
+  exit_code UNKNOWN
 end
 
-puts "HAPROXY " + status[exit_code] + ": " + @errors.join('; ') + "|" + @perfdata.join(" ")
-puts @proxies
+puts "HAPROXY " + status[exit_code] + ": " + @errors.join('; ')
+puts @proxies.sort
 
 exit exit_code
 

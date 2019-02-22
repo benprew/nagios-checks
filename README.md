@@ -1,6 +1,8 @@
 nagios-checks
 =============
 
+[![Build Status](https://travis-ci.org/benprew/nagios-checks.svg?branch=master)](https://travis-ci.org/benprew/nagios-checks)
+
 Various Nagios check scripts.
 
 check_haproxy
