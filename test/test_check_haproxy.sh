@@ -1,5 +1,6 @@
 #!/bin/bash
 
+echo -n "testing nothing smokes..."
 for f in test/haproxy/*; do
     ./check_haproxy.rb -u "$f" |head -n1
 done > /tmp/output.txt
@@ -13,3 +14,12 @@ HAPROXY CRIT: ubuntuusers-tt srv10 DOWN active 	sess=0/512(0%) smax=0; ubuntuuse
 EOF
 
 diff -u /tmp/output.txt /tmp/expected.txt
+echo "OK"
+
+echo -n "testing warn limit..."
+./check_haproxy.rb -u "test/haproxy/fedoraproject_org.csv;" -w 2 -p fedmsg-raw-zmq-outbound-backend |grep 'WARN.*too many sessions' > /dev/null
+echo "OK"
+
+echo -n "testing crit limit..."
+./check_haproxy.rb -u "test/haproxy/fedoraproject_org.csv;" -w 1 -c2 -p fedmsg-raw-zmq-outbound-backend |grep 'CRIT.*too many sessions' > /dev/null
+echo "OK"
