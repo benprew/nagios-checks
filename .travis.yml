@@ -1,0 +1,6 @@
+language: ruby
+script: make
+rvm:
+  - ruby-head
+  - 1.9
+  - 1.8
