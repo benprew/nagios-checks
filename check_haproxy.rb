@@ -146,11 +146,10 @@ end
 header = nil
 
 haproxy_response(options).each do |line|
-
   if line =~ /^# /
     header = line[2..-1].split(',')
     next
-  elsif !defined? header
+  elsif !header
     puts "ERROR: CSV header is missing"
     exit UNKNOWN
   end
