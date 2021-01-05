@@ -60,6 +60,10 @@ op = OptionParser.new do |opts|
     options.http_error_critical = true
   end
 
+  opts.on('--debug', 'Show debug log') do
+    options.debug = true
+  end
+
   opts.on( '-h', '--help', 'Display this screen' ) do
     puts opts
     exit 3
@@ -97,9 +101,9 @@ def open_options(options)
     :http_basic_authentication => [options.user, options.password]
   }
 
-  # allows https with invalid certificate on ruby 1.9
+  # allows https with invalid certificate on ruby > 1.8
   # src: http://snippets.aktagon.com/snippets/370-hack-for-using-openuri-with-ssl
-  if options.insecure_ssl && RUBY_VERSION =~ /1\.9/
+  if options.insecure_ssl && RUBY_VERSION !~ /1\.8/
     open_opts[:ssl_verify_mode] = OpenSSL::SSL::VERIFY_NONE
   end
 
@@ -146,6 +150,7 @@ end
 header = nil
 
 haproxy_response(options).each do |line|
+  puts "Parsing response line: #{line}" if options.debug
   if line =~ /^# /
     header = line[2..-1].split(',')
     next
