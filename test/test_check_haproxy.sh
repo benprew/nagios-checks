@@ -1,5 +1,7 @@
 #!/bin/bash
 
+set -e
+
 echo -n "testing nothing smokes..."
 for f in test/haproxy/*; do
     ./check_haproxy.rb -u "$f" |head -n1
@@ -23,3 +25,5 @@ echo "OK"
 echo -n "testing crit limit..."
 ./check_haproxy.rb -u "test/haproxy/fedoraproject_org.csv;" -w 1 -c2 -p fedmsg-raw-zmq-outbound-backend |grep 'CRIT.*too many sessions' > /dev/null
 echo "OK"
+
+echo "SUCCESS! ALL TESTS PASSED"

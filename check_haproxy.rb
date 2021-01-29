@@ -60,6 +60,10 @@ op = OptionParser.new do |opts|
     options.http_error_critical = true
   end
 
+  opts.on('--cookie [COOKIE]', 'Login/Session cookie') do |v|
+    options.cookie = v
+  end
+
   opts.on( '-h', '--help', 'Display this screen' ) do
     puts opts
     exit 3
@@ -96,6 +100,7 @@ def open_options(options)
   open_opts = {
     :http_basic_authentication => [options.user, options.password]
   }
+  open_opts['Cookie'] = options.cookie if options.cookie
 
   # allows https with invalid certificate on ruby 1.9
   # src: http://snippets.aktagon.com/snippets/370-hack-for-using-openuri-with-ssl
@@ -103,7 +108,7 @@ def open_options(options)
     open_opts[:ssl_verify_mode] = OpenSSL::SSL::VERIFY_NONE
   end
 
-  open_opts
+  return open_opts
 end
 
 def haproxy_response(options)
@@ -119,7 +124,7 @@ def haproxy_response(options)
   end
 
   begin
-    open(options.url, open_options(options))
+    return URI.open(options.url, open_options(options))
   rescue OpenURI::HTTPError => e
     puts "ERROR: #{e.message}"
     options.http_error_critical ? exit(CRITICAL) : exit(UNKNOWN)
