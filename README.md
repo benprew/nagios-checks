@@ -1,7 +1,7 @@
 nagios-checks
 =============
 
-[![Build Status](https://travis-ci.org/benprew/nagios-checks.svg?branch=master)](https://travis-ci.org/benprew/nagios-checks)
+![Build](https://github.com/benprew/nagios-checks/workflows/Build/badge.svg)
 
 Various Nagios check scripts.
 
