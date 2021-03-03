@@ -18,6 +18,8 @@ status = ['OK', 'WARN', 'CRIT', 'UNKN']
 @perfdata = []
 options = OpenStruct.new
 options.proxies = []
+options.svnames = []
+options.verbose = false
 
 op = OptionParser.new do |opts|
   opts.banner = 'Usage: check_haproxy.rb [options]'
@@ -34,6 +36,10 @@ op = OptionParser.new do |opts|
   # Optional Arguments
   opts.on("-p", "--proxies [PROXIES]", "Only check these proxies (eg. proxy1,proxy2,proxylive)") do |v|
     options.proxies = v.split(/,/)
+  end
+
+  opts.on("-s", "--svname [SVNAMES]", "Only check these svnames (eg. ACKENDserver1,server2,BACKEND,FRONTEND). Can be used in AND combination with --proxies") do |v|
+    options.svnames = v.split(/,/)
   end
 
   opts.on("-U", "--user [USER]", "Basic auth user to login as") do |v|
@@ -62,6 +68,10 @@ op = OptionParser.new do |opts|
 
   opts.on('--cookie [COOKIE]', 'Login/Session cookie') do |v|
     options.cookie = v
+  end
+
+  opts.on("-v", "--verbose", "Print more log") do |v|
+    options.verbose = true
   end
 
   opts.on( '-h', '--help', 'Display this screen' ) do
@@ -162,6 +172,9 @@ haproxy_response(options).each do |line|
   row = header.zip(CSV.parse_line(line)).reduce({}) { |hash, val| hash.merge({val[0] => val[1]}) }
 
   next unless options.proxies.empty? || options.proxies.include?(row['pxname'])
+  puts "#{row['pxname']} -- #{row['svname']} PASSED FIRST CHECK" if options.verbose
+  next unless options.svnames.empty? || options.svnames.include?(row['svname'])
+  puts "#{row['pxname']} -- #{row['svname']} PASSED SECOND CHECK" if options.verbose
   next if ['statistics', 'admin_stats', 'stats'].include? row['pxname']
   next if row['status'] == 'no check'
 
