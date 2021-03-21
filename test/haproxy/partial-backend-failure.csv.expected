@@ -1,0 +1,10 @@
+HAPROXY WARN: ubuntuusers-static kanu (act) DOWN	sess=0/512(0%) smax=0; ubuntuusers-media kanu (act) DOWN	sess=0/512(0%) smax=0; ubuntuusers-legacy kanu (act) DOWN	sess=0/512(0%) smax=0
+ubuntuusers-legacy BACKEND (act) UP	sess=0/820(0%) smax=0
+ubuntuusers-legacy kanu (act) DOWN	sess=0/512(0%) smax=0
+ubuntuusers-legacy she (act) UP	sess=0/512(0%) smax=0
+ubuntuusers-media BACKEND (act) UP	sess=0/820(0%) smax=0
+ubuntuusers-media kanu (act) DOWN	sess=0/512(0%) smax=0
+ubuntuusers-media she (act) UP	sess=0/512(0%) smax=0
+ubuntuusers-static BACKEND (act) UP	sess=0/820(0%) smax=1
+ubuntuusers-static kanu (act) DOWN	sess=0/512(0%) smax=0
+ubuntuusers-static she (act) UP	sess=0/512(0%) smax=0
