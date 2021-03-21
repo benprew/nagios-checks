@@ -52,11 +52,11 @@ op = OptionParser.new do |opts|
     options.critical = v
   end
 
-  opts.on( '-k', '--insecure', 'Allow insecure TLS/SSL connections' ) do
+  opts.on('-k', '--insecure', 'Allow insecure TLS/SSL connections') do
     options.insecure_ssl = true
   end
 
-  opts.on( '--http-error-critical', 'Throw critical when connection to HAProxy is refused or returns error code' ) do
+  opts.on('--http-error-critical', 'Throw critical when connection to HAProxy is refused or returns error code') do
     options.http_error_critical = true
   end
 
@@ -64,7 +64,7 @@ op = OptionParser.new do |opts|
     options.cookie = v
   end
 
-  opts.on( '-h', '--help', 'Display this screen' ) do
+  opts.on('-h', '--help', 'Display this screen') do
     puts opts
     exit 3
   end
