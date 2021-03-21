@@ -5,6 +5,8 @@ require 'open-uri'
 require 'ostruct'
 require 'csv'
 
+VERSION = :'3.2.0'
+
 OK = 0
 WARNING = 1
 CRITICAL = 2
@@ -66,6 +68,11 @@ op = OptionParser.new do |opts|
 
   opts.on('-h', '--help', 'Display this screen') do
     puts opts
+    exit 3
+  end
+
+  opts.on('--version', 'Show version and exit') do
+    puts "check_haproxy.rb v#{VERSION}"
     exit 3
   end
 end
