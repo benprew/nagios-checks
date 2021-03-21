@@ -1,0 +1,14 @@
+HAPROXY CRIT: www BACKEND (act) DOWN	sess=0/100(0%) smax=21
+demo BACKEND (act) UP	sess=1/20(5%) smax=10
+git BACKEND (act) UP	sess=0/2(0%) smax=13
+git bck (bck) UP	sess=0/2(0%) smax=2
+git www (act) UP	sess=0/2(0%) smax=2
+http-in FRONTEND (act) OPEN	sess=5/100(5%) smax=25
+http-in IPv4-cached (act) OPEN	sess=0/100(0%) smax=14
+http-in IPv4-direct (act) OPEN	sess=1/100(1%) smax=25
+http-in IPv6-direct (act) OPEN	sess=0/100(0%) smax=12
+http-in local (act) OPEN	sess=0/100(0%) smax=0
+http-in local-https (act) OPEN	sess=0/100(0%) smax=5
+www BACKEND (act) DOWN	sess=0/100(0%) smax=21
+www bck (bck) UP	sess=4/10(40%) smax=10
+www www (act) DOWN	sess=0/20(0%) smax=14
