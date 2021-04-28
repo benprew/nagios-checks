@@ -131,7 +131,12 @@ def haproxy_response(options)
   end
 
   begin
+    if Gem::Version.new(RUBY_VERSION) >= Gem::Version.new('2.4.0')
+      return URI.open(options.url, **open_options(options))
+    end
+
     return open(options.url, open_options(options))
+
   rescue OpenURI::HTTPError => e
     puts "ERROR: #{e.message}"
     options.http_error_critical ? exit(CRITICAL) : exit(UNKNOWN)
