@@ -29,7 +29,7 @@ op = OptionParser.new do |opts|
   # Required arguments
   opts.on("-u", "--url URL", "Statistics URL to check (eg. http://demo.1wt.eu/)") do |v|
     options.url = v
-    options.url += "/;csv" unless options.url =~ /csv$/
+    options.url += ";csv" unless options.url =~ /csv$/
   end
 
   # Optional Arguments
