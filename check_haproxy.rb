@@ -130,7 +130,7 @@ def haproxy_response(options)
   end
 
   begin
-    return open(options.url, open_options(options))
+    return URI.open(options.url, **open_options(options))
   rescue OpenURI::HTTPError => e
     puts "ERROR: #{e.message}"
     options.http_error_critical ? exit(CRITICAL) : exit(UNKNOWN)
