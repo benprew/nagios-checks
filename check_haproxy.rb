@@ -16,10 +16,9 @@ UNKNOWN = 3
 status = ['OK', 'WARN', 'CRIT', 'UNKN']
 
 @proxies = []
-@errors = []
-@perfdata = []
+@errors = { OK => [], WARNING => [], CRITICAL => [], UNKNOWN => [] }
 options = OpenStruct.new
-options.proxies = []
+options.proxies = nil
 
 op = OptionParser.new do |opts|
   opts.banner = 'Usage: check_haproxy.rb [options]'
@@ -149,12 +148,6 @@ def haproxy_response(options)
   end
 end
 
-def exit_code(code=0)
-  @exit_code ||= OK
-  @exit_code = code if code > @exit_code
-  @exit_code
-end
-
 header = nil
 
 haproxy_response(options).each do |line|
@@ -168,18 +161,18 @@ haproxy_response(options).each do |line|
 
   row = header.zip(CSV.parse_line(line)).reduce({}) { |hash, val| hash.merge({val[0] => val[1]}) }
 
-  next unless options.proxies.empty? || options.proxies.include?(row['pxname'])
+  next if options.proxies && !options.proxies.include?(row['pxname'])
   next if ['statistics', 'admin_stats', 'stats'].include? row['pxname']
   next if row['status'] == 'no check'
 
-  role = row['act'].to_i > 0 ? 'active ' : (row['bck'].to_i > 0 ? 'backup ' : '')
+  role = %w[BACKEND FRONTEND].include?(row['svname']) || row['bck'].to_i == 0 ? :act : :bck
   if row['slim'].to_i == 0
     session_percent_usage = 0
   else
     session_percent_usage = row['scur'].to_i * 100 / row['slim'].to_i
   end
 
-  proxy_name = sprintf("%s %s %s %s", row['pxname'], row['svname'], row['status'], role)
+  proxy_name = sprintf("%s %s (%s) %s", row['pxname'], row['svname'], role, row['status'])
   message = sprintf("%s\tsess=%s/%s(%d%%) smax=%s",
                     proxy_name,
                     row['scur'],
@@ -188,33 +181,29 @@ haproxy_response(options).each do |line|
                     row['smax'])
   @proxies << message
 
-  if row['status'].include?('DOWN')
-    @errors << message
-    exit_code CRITICAL
+  if role == :act && row['status'] == 'DOWN'
+    err_level = row['svname'] == 'BACKEND' ? CRITICAL : WARNING
+    @errors[err_level] << message
   end
 
   if options.critical && session_percent_usage >= options.critical.to_i
-    @errors << sprintf("%s - too many sessions %s/%s(%d%%)", proxy_name, row['scur'], row['slim'], session_percent_usage)
-    exit_code CRITICAL
+    @errors[CRITICAL] << sprintf("%s - too many sessions %s/%s(%d%%)", proxy_name, row['scur'], row['slim'], session_percent_usage)
   elsif options.warning && session_percent_usage >= options.warning.to_i
-    @errors << sprintf("%s - too many sessions %s/%s(%d%%)", proxy_name, row['scur'], row['slim'], session_percent_usage)
-    exit_code WARNING
+    @errors[WARNING] << sprintf("%s - too many sessions %s/%s(%d%%)", proxy_name, row['scur'], row['slim'], session_percent_usage)
   end
 end
 
-if @errors.length == 0
-  @errors << sprintf("%d proxies found", @proxies.length)
+@errors[OK] << "#{@proxies.length} proxies found"
+
+@errors[UNKNOWN] << "No proxies listed as up or down" if @proxies.empty?
+
+[CRITICAL, WARNING, UNKNOWN, OK].each do |exit_code|
+  next if @errors[exit_code].empty?
+
+  puts "HAPROXY #{status[exit_code]}: #{@errors[exit_code].join('; ')}"
+  puts @proxies.sort
+  exit exit_code
 end
-
-if @proxies.length == 0
-  @errors << "No proxies listed as up or down"
-  exit_code UNKNOWN
-end
-
-puts "HAPROXY " + status[exit_code] + ": " + @errors.join('; ')
-puts @proxies.sort
-
-exit exit_code
 
 =begin
 Copyright (C) 2013 Ben Prew

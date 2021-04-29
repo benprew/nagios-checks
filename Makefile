@@ -1,4 +1,4 @@
 .PHONY: test
 
 test:
-	test/test_check_haproxy.sh
+	prove -v test/test_check_haproxy.sh

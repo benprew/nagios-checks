@@ -1,0 +1,14 @@
+HAPROXY OK: 13 proxies found
+chronograf BACKEND (act) UP	sess=0/1(0%) smax=0
+http FRONTEND (act) OPEN	sess=2/10000(0%) smax=48
+http sock-1 (act) OPEN	sess=0/10000(0%) smax=7
+http sock-2 (act) OPEN	sess=0/10000(0%) smax=1
+http sock-3 (act) OPEN	sess=2/10000(0%) smax=48
+hugo BACKEND (act) UP	sess=0/1000(0%) smax=1
+influxdb-admin BACKEND (act) UP	sess=0/1(0%) smax=0
+influxdb-data BACKEND (act) UP	sess=0/1(0%) smax=0
+minio BACKEND (act) UP	sess=0/1000(0%) smax=0
+nginx BACKEND (act) UP	sess=0/1000(0%) smax=48
+nginx nginx-local (act) UP	sess=0/-1(0%) smax=48
+radicale BACKEND (act) UP	sess=0/1000(0%) smax=1
+torrent BACKEND (act) UP	sess=0/1(0%) smax=0
