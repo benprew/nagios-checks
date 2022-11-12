@@ -151,6 +151,7 @@ end
 header = nil
 
 haproxy_response(options).each do |line|
+  line !~ line.match?(/redis/)
   if line =~ /^# /
     header = line[2..-1].split(',')
     next
